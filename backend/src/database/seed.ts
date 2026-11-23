@@ -1,36 +1,26 @@
 import * as bcrypt from 'bcrypt';
-import dataSource from './data-source';
 import { User } from '../users/entities/user.entity';
 import { Role } from '../users/enums/role.enum';
+import dataSource from './data-source';
 
 async function main() {
   await dataSource.initialize();
-  await dataSource.runMigrations(); 
+  const repo = dataSource.getRepository(User);
+  const password = await bcrypt.hash('Passw0rd!', 10);
 
-  const users = dataSource.getRepository(User);
-  const email = (process.env.ADMIN_EMAIL ?? 'admin@cloudops.local').toLowerCase();
+  const seeds = [
+    { email: 'admin@cloudops.com', firstName: 'Admin', lastName: 'Root', role: Role.ADMIN },
+    { email: 'devops@cloudops.com', firstName: 'Dev', lastName: 'Ops', role: Role.DEVOPS },
+    { email: 'viewer@cloudops.com', firstName: 'View', lastName: 'Er', role: Role.VIEWER },
+  ];
 
-  // Idempotent: re-running the seed never overwrites an existing admin.
-  const existing = await users.findOneBy({ email });
-  if (existing) {
-    console.log(`Seed skipped: ${email} already exists`);
-  } else {
-    const passwordHash = await bcrypt.hash(process.env.ADMIN_PASSWORD ?? 'ChangeMe123!', 10);
-    await users.save(
-      users.create({
-        email,
-        name: process.env.ADMIN_NAME ?? 'Platform Admin',
-        passwordHash,
-        role: Role.ADMIN,
-      }),
-    );
-    console.log(`Seed OK: admin ${email}`);
+  for (const s of seeds) {
+    if (!(await repo.findOneBy({ email: s.email }))) {
+      await repo.save(repo.create({ ...s, password }));
+    }
   }
-
   await dataSource.destroy();
+  console.log('Seed done');
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+main();

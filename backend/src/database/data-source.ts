@@ -1,13 +1,13 @@
-import { config } from 'dotenv';
-import { join } from 'path';
+import 'dotenv/config';
 import { DataSource } from 'typeorm';
 
-config(); // load .env when used from the CLI (migrations, seed)
-
-/** Used by the TypeORM CLI (migration:generate / migration:run) and by the seed script. */
 export default new DataSource({
   type: 'postgres',
-  url: process.env.DATABASE_URL,
-  entities: [join(__dirname, '..', '**', '*.entity{.ts,.js}')],
-  migrations: [join(__dirname, 'migrations', '*{.ts,.js}')],
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT ?? 5432),
+  username: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  entities: ['src/**/*.entity.ts'],
+  migrations: ['src/database/migrations/*.ts'],
 });
