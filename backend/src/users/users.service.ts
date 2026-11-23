@@ -1,69 +1,55 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
-import { Role } from './enums/role.enum';
+import { QueryUsersDto } from './dto/list-users.query';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { User } from './entities/user.entity';
+import { Role } from './enums/role.enum';
 
 @Injectable()
-export class UsersService implements OnModuleInit {
-  private readonly logger = new Logger(UsersService.name);
+export class UsersService {
+  constructor(@InjectRepository(User) private readonly users: Repository<User>) {}
 
-  constructor(
-    @InjectRepository(User) private repo: Repository<User>,
-    private config: ConfigService,
-  ) {}
+  async findAll({ page, limit, search, role }: QueryUsersDto) {
+    const qb = this.users
+      .createQueryBuilder('u')
+      .orderBy('u.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
 
-  // Creates the first Admin from .env if no admin exists yet
-  async onModuleInit() {
-    const email = this.config.get<string>('ADMIN_EMAIL');
-    const password = this.config.get<string>('ADMIN_PASSWORD');
-    if (!email || !password) return;
+    if (role) qb.andWhere('u.role = :role', { role });
+    if (search) {
+      qb.andWhere('(u.email ILIKE :s OR u.firstName ILIKE :s OR u.lastName ILIKE :s)', {
+        s: `%${search}%`,
+      });
+    }
 
-    const adminExists = await this.repo.exist({ where: { role: Role.ADMIN } });
-    if (adminExists) return;
-
-    await this.repo.save(
-      this.repo.create({
-        email: email.toLowerCase(),
-        name: 'Admin',
-        passwordHash: await bcrypt.hash(password, 10),
-        role: Role.ADMIN,
-      }),
-    );
-    this.logger.log(`Seeded first admin: ${email}`);
+    const [data, total] = await qb.getManyAndCount();
+    return { data, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
   }
 
-  findById(id: string) {
-    return this.repo.findOne({ where: { id } });
+  async findOne(id: string) {
+    const user = await this.users.findOne({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+    return user;
   }
 
-  findByEmail(email: string) {
-    return this.repo.findOne({ where: { email } });
+  async updateProfile(id: string, dto: UpdateProfileDto) {
+    await this.users.update(id, dto);
+    return this.findOne(id);
   }
 
-  findByEmailWithPassword(email: string) {
-    return this.repo
-      .createQueryBuilder('user')
-      .addSelect('user.passwordHash')
-      .where('user.email = :email', { email })
-      .getOne();
+  async updateRole(targetId: string, role: Role, currentUserId: string) {
+    if (targetId === currentUserId) throw new BadRequestException('You cannot change your own role');
+    await this.findOne(targetId);
+    await this.users.update(targetId, { role });
+    return this.findOne(targetId);
   }
 
-  findByIdWithPassword(id: string) {
-    return this.repo
-      .createQueryBuilder('user')
-      .addSelect('user.passwordHash')
-      .where('user.id = :id', { id })
-      .getOne();
-  }
-
-  create(data: Partial<User>) {
-    return this.repo.save(this.repo.create(data));
-  }
-
-  update(id: string, data: Partial<User>) {
-    return this.repo.update(id, data);
+  async setActive(targetId: string, isActive: boolean, currentUserId: string) {
+    if (targetId === currentUserId) throw new BadRequestException('You cannot deactivate yourself');
+    await this.findOne(targetId);
+    await this.users.update(targetId, isActive ? { isActive } : { isActive, refreshTokenHash: null });
+    return this.findOne(targetId);
   }
 }

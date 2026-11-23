@@ -1,10 +1,4 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { Role } from '../enums/role.enum';
 
 @Entity('users')
@@ -15,17 +9,24 @@ export class User {
   @Column({ unique: true })
   email: string;
 
-  @Column()
-  name: string;
-
+  // select:false => never loaded unless explicitly requested (no accidental leaks)
   @Column({ select: false })
-  passwordHash: string;
+  password: string;
+
+  @Column()
+  firstName: string;
+
+  @Column()
+  lastName: string;
 
   @Column({ type: 'enum', enum: Role, default: Role.VIEWER })
   role: Role;
 
   @Column({ default: true })
   isActive: boolean;
+
+  @Column({ type: 'varchar', nullable: true, select: false })
+  refreshTokenHash: string | null;
 
   @CreateDateColumn()
   createdAt: Date;
