@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ProjectsModule } from './projects/projects.module';
 import { EnvironmentsModule } from './environments/environments.module';
+import { ServersModule } from './servers/servers.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { EnvironmentsModule } from './environments/environments.module';
     AuthModule,
     UsersModule,
     ProjectsModule,
+    ServersModule,
     //EnvironmentsModule,
   ],
 })
